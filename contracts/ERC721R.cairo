@@ -26,6 +26,7 @@ from openzeppelin.introspection.ERC165 import ERC165_supports_interface
 from openzeppelin.token.erc20.interfaces.IERC20 import IERC20
 from openzeppelin.security.safemath import (
     uint256_checked_add, uint256_checked_sub_le, uint256_checked_mul)
+from src.openzeppelin.security.reentrancy_guard import (ReentrancyGuard_start, ReentrancyGuard_end)
 
 # the current token ID to be minted
 @storage_var
@@ -290,6 +291,8 @@ func refund{
     # we only check once as if the period ends while someone started the refund
     # I think it's fair to be ok with it
     # one could add the check on the internal function to only refund x amount of tokens
+    ReentrancyGuard_start()
+    
     is_refund_guarantee_active()
     
     # get the caller address
@@ -312,6 +315,8 @@ func refund{
     # refund
     IERC20.transfer(
         contract_address=currency_token, recipient=caller_address, amount=amount_to_refund)
+
+    ReentrancyGuard_end()
     return ()
 end
 
@@ -323,6 +328,8 @@ func mint{
     }(
     quantity : Uint256) -> ():
     alloc_locals
+
+    ReentrancyGuard_start()
 
     # check if we are already at max supply
     let (local max_mint_supply) = ERC721R_max_supply.read()
@@ -378,6 +385,8 @@ func mint{
     # internal mint function 
     _mint(caller_address, quantity.low)
 
+
+    ReentrancyGuard_end()
     # revoked references
     tempvar syscall_ptr = syscall_ptr
     tempvar pedersen_ptr = pedersen_ptr
@@ -396,6 +405,7 @@ func withdraw{
     # only owner can withdraw funds
     Ownable_only_owner()
 
+    ReentrancyGuard_start()
     # check if we are past the refund period
     let (local block_number) = get_block_number()
     let (local refund_end_time) = ERC721R_refund_end_time.read()
@@ -413,6 +423,7 @@ func withdraw{
     let (owner) = Ownable_get_owner()
     IERC20.transfer(contract_address=token_address, recipient=owner, amount=contract_balance)
 
+    ReentrancyGuard_end()
     return ()
 end
 
